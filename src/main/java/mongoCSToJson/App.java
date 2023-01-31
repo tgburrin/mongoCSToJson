@@ -59,7 +59,7 @@ public class App extends Thread {
 	}
 
 	public static void main(String[] args) {
-		String mongoUri = "mongodb://tgb-01-26.tgburrin.net";
+		String mongoUri = "mongodb://tgb-01-26.tgburrin.net,tgb-01-27.tgburrin.net,tgb-01-28.tgburrin.net/";
 		String postgresUri = "jdbc:postgresql://forseti.tgburrin.net:5432/dwstage";
 
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'hh:mm:ssxxx").withZone(ZoneOffset.UTC);
