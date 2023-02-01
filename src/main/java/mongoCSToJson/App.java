@@ -27,6 +27,7 @@ import com.mongodb.client.model.changestream.FullDocument;
 import com.mongodb.client.model.changestream.OperationType;
 
 public class App extends Thread {
+	private static AtomicInteger totalCount = new AtomicInteger(0);
 	private static AtomicInteger counter = new AtomicInteger(0);
 	private static Instant lastWrite = Instant.now();
 	private static Connection dbc = null;
@@ -40,13 +41,15 @@ public class App extends Thread {
 				if (ChronoUnit.MILLIS.between(lastWrite, Instant.now()) > 250 && counter.get() > 0) {
 					try {
 						dbc.commit();
-						System.out.println("Committing based on time");
+						int cur = counter.get();
+						counter.set(0);
+						lastWrite = Instant.now();
+						int tc = totalCount.addAndGet(cur);
+						System.out.println("Committed "+cur+" records based on time: "+tc);
 					} catch (SQLException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
-					counter.set(0);
-					lastWrite = Instant.now();
 				}
 			}
 			try {
@@ -155,9 +158,10 @@ public class App extends Thread {
 				}
 				int cur = counter.addAndGet(1);
 				if (cur > commitLimit) {
-					dbc.commit();
 					counter.set(0);
-					System.out.println("Committing based on count");
+					dbc.commit();
+					int tc = totalCount.addAndGet(cur);
+					System.out.println("Committed "+cur+" records based on count: "+tc);
 				}
 			}
 		} catch (SQLException e) {
