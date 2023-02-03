@@ -4,7 +4,7 @@ create table if not exists landing.mongo_raw (
 	valid_to_dt timestamptz not null default 'Infinity',
 
 	id bytea not null,
-	event_dt timestamptz not null,
+	event_dt timestamptz,
 	type text not null,
 	operation text not null,
 	object jsonb not null,

@@ -109,15 +109,17 @@ public class App extends Thread {
 			ChangeStreamDocument<Document> n = null;
 			while (true) {
 				n = cursor.next();
-				// System.out.println(n.toString());
+				//System.out.println(n.toString());
 				BsonDocument idDoc = n.getDocumentKey();
-				Instant wt = new Date(n.getWallTime().getValue()).toInstant();
+				Instant wt = null;
+				if ( n.getWallTime() != null )
+					wt = new Date(n.getWallTime().getValue()).toInstant();
 
 				if (n.getOperationType() == OperationType.DELETE) {
 					// System.out.println("id -> "+n.getNamespace().getCollectionName()+
 					// "/"+idDoc.getObjectId("_id").getValue().toString() + " -> "+wt.toString());
 					ps.setString(1, idDoc.getObjectId("_id").getValue().toString());
-					ps.setString(2, wt.toString());
+					ps.setString(2, wt == null ? null : wt.toString());
 					ps.setString(3, n.getNamespace().getCollectionName());
 					ps.setString(4, n.getOperationTypeString());
 
@@ -135,7 +137,7 @@ public class App extends Thread {
 							+ ") insert into landing.mongo_raw (event_dt, id, type, operation, object) select ?::timestamptz, * from base";
 					PreparedStatement dropStatement = dbc.prepareStatement(sql);
 					dropStatement.setString(1, n.getNamespace().getCollectionName());
-					dropStatement.setString(2, wt.toString());
+					dropStatement.setString(2, wt == null ? null : wt.toString());
 					dropStatement.execute();
 				} else if (n.getOperationType() == OperationType.DROP_DATABASE) {
 					System.err.println("Unhandled operation for ns " + n.getNamespace().toString());
@@ -143,7 +145,7 @@ public class App extends Thread {
 					// System.out.println("id -> "+n.getNamespace().getCollectionName()+
 					// "/"+idDoc.getObjectId("_id").getValue().toString() + " -> "+wt.toString());
 					ps.setString(1, idDoc.getObjectId("_id").getValue().toString());
-					ps.setString(2, wt.toString());
+					ps.setString(2, wt == null ? null : wt.toString());
 					ps.setString(3, n.getNamespace().getCollectionName());
 					ps.setString(4, n.getOperationTypeString());
 
