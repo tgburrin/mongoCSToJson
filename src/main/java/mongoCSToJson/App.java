@@ -62,8 +62,9 @@ public class App extends Thread {
 	}
 
 	public static void main(String[] args) {
-		String mongoUri = "mongodb://tgb-01-26.tgburrin.net,tgb-01-27.tgburrin.net,tgb-01-28.tgburrin.net/";
-		String postgresUri = "jdbc:postgresql://forseti.tgburrin.net:5432/dwstage";
+		String mongoUri = System.getenv("MONGODB_URI");
+		String mongoDbList = System.getenv("MONGO_DB_LIST");
+		String postgresUri = System.getenv("POSTGRES_URI");
 
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'hh:mm:ssxxx").withZone(ZoneOffset.UTC);
 
@@ -74,7 +75,7 @@ public class App extends Thread {
 					writer.writeString(DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(zonedDateTime));
 				}).build();
 
-		String adddocsql = "insert into landing.mongo_raw";
+		String adddocsql = "insert into raw_data.mongo_streaming";
 		adddocsql += "(id, event_dt, type, operation, object)";
 		adddocsql += " values ";
 		adddocsql += "(('\\x'||?::text)::bytea, ?::timestamptz, ?::text, ?::text, ?::jsonb) ";
@@ -83,9 +84,6 @@ public class App extends Thread {
 
 		try {
 			Properties props = new Properties();
-			props.setProperty("user", "mongorep");
-			props.setProperty("password", "mypassword");
-
 			Class.forName("org.postgresql.Driver");
 			dbc = DriverManager.getConnection(postgresUri, props);
 			dbc.setAutoCommit(false);
@@ -103,7 +101,7 @@ public class App extends Thread {
 				System.out.println("Database -> " + db);
 			}
 
-			MongoDatabase db = mc.getDatabase("test");
+			MongoDatabase db = mc.getDatabase(mongoDbList);
 			MongoCursor<ChangeStreamDocument<Document>> cursor = db.watch().fullDocument(FullDocument.UPDATE_LOOKUP)
 					.iterator();
 			ChangeStreamDocument<Document> n = null;
@@ -132,9 +130,9 @@ public class App extends Thread {
 					String sql = "with base as (\n" + "        select \n" + "				id, \n"
 							+ "				type, \n" + "				'drop' as operation, \n"
 							+ "				jsonb_set('{}'::jsonb, '{_id}', object #> '{_id}') \n" + "from \n"
-							+ "				landing.mongo_raw \n" + "where \n" + "				type = ?::text \n"
+							+ "				raw_data.mongo_streaming \n" + "where \n" + "				type = ?::text \n"
 							+ "and operation not in ('drop') \n" + "and valid_to_dt = 'infinity'\n"
-							+ ") insert into landing.mongo_raw (event_dt, id, type, operation, object) select ?::timestamptz, * from base";
+							+ ") insert into raw_data.mongo_streaming (event_dt, id, type, operation, object) select ?::timestamptz, * from base";
 					PreparedStatement dropStatement = dbc.prepareStatement(sql);
 					dropStatement.setString(1, n.getNamespace().getCollectionName());
 					dropStatement.setString(2, wt == null ? null : wt.toString());
