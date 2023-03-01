@@ -43,6 +43,7 @@ public class App extends Thread {
 						dbc.commit();
 						int cur = counter.get();
 						counter.set(0);
+						totalCount.set(0);
 						lastWrite = Instant.now();
 						int tc = totalCount.addAndGet(cur);
 						System.out.println("Committed "+cur+" records based on time: "+tc);
