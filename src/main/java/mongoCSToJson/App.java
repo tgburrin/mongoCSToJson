@@ -42,11 +42,12 @@ public class App extends Thread {
 					try {
 						dbc.commit();
 						int cur = counter.get();
+						int tc = totalCount.addAndGet(cur);
+						System.out.println("Committed "+cur+" records based on time: "+tc);
+
 						counter.set(0);
 						totalCount.set(0);
 						lastWrite = Instant.now();
-						int tc = totalCount.addAndGet(cur);
-						System.out.println("Committed "+cur+" records based on time: "+tc);
 					} catch (SQLException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -64,7 +65,7 @@ public class App extends Thread {
 
 	public static void main(String[] args) {
 		String mongoUri = System.getenv("MONGODB_URI");
-		String mongoDbList = System.getenv("MONGO_DB_LIST");
+		String mongoDbList = System.getenv("MONGODB_LIST");
 		String postgresUri = System.getenv("POSTGRES_URI");
 
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'hh:mm:ssxxx").withZone(ZoneOffset.UTC);
@@ -76,7 +77,7 @@ public class App extends Thread {
 					writer.writeString(DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(zonedDateTime));
 				}).build();
 
-		String adddocsql = "insert into raw_data.mongo_streaming";
+		String adddocsql = "insert into landing.mongo_streaming";
 		adddocsql += "(id, event_dt, type, operation, object)";
 		adddocsql += " values ";
 		adddocsql += "(('\\x'||?::text)::bytea, ?::timestamptz, ?::text, ?::text, ?::jsonb) ";
@@ -128,12 +129,7 @@ public class App extends Thread {
 					// "+n.getDocumentKey().toJson(settings));
 				} else if (n.getOperationType() == OperationType.DROP) {
 					System.out.println("Handling drop of " + n.getNamespace().getCollectionName());
-					String sql = "with base as (\n" + "        select \n" + "				id, \n"
-							+ "				type, \n" + "				'drop' as operation, \n"
-							+ "				jsonb_set('{}'::jsonb, '{_id}', object #> '{_id}') \n" + "from \n"
-							+ "				raw_data.mongo_streaming \n" + "where \n" + "				type = ?::text \n"
-							+ "and operation not in ('drop') \n" + "and valid_to_dt = 'infinity'\n"
-							+ ") insert into raw_data.mongo_streaming (event_dt, id, type, operation, object) select ?::timestamptz, * from base";
+					String sql = "select * from landing.mark_collection_dropped( record_type => ?::text, txn_ts => ?::timestamptz)";
 					PreparedStatement dropStatement = dbc.prepareStatement(sql);
 					dropStatement.setString(1, n.getNamespace().getCollectionName());
 					dropStatement.setString(2, wt == null ? null : wt.toString());
