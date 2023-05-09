@@ -32,10 +32,9 @@ public class MessagePublisher {
 	}
 	*/
 
-	public void publish_message(String id, String eventDt, String type, String operation, String object)
+	public void publishMessage(String message)
 			throws IOException, ExecutionException, InterruptedException {
-		System.out.println("Sending message '"+object+"'");
-		ByteString data = ByteString.copyFromUtf8(object);
+		ByteString data = ByteString.copyFromUtf8(message);
 		PubsubMessage pubsubMessage = PubsubMessage.newBuilder().setData(data).build();
 
 		// Once published, returns a server-assigned message id (unique within the topic)

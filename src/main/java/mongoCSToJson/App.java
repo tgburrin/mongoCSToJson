@@ -16,6 +16,7 @@ import org.bson.Document;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
@@ -32,10 +33,11 @@ public class App extends Thread {
 	public void run() {
 		while (true) {
 			int cur = counter.get();
-			counter.set(0);
+			if (cur > 0)
+				counter.set(0);
 			System.out.println("Published "+cur+" records");
 			try {
-				Thread.sleep(5);
+				Thread.sleep(10000);
 
 			} catch (InterruptedException e) {
 				e.printStackTrace();
@@ -53,6 +55,7 @@ public class App extends Thread {
 		String saCredsFile = System.getenv("GOOGLE_SA_CREDENTIALS");
 		String projectId = System.getenv("GOOGLE_SA_PROJECT");
 
+		ObjectMapper objectMapper = new ObjectMapper();
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'hh:mm:ssxxx").withZone(ZoneOffset.UTC);
 
 		JsonWriterSettings settings = JsonWriterSettings.builder().outputMode(JsonMode.RELAXED)
@@ -82,20 +85,50 @@ public class App extends Thread {
 
 		while (true) {
 			n = cursor.next();
+			Instant wt = null;
+
 			//System.out.println(n.toString());
 			BsonDocument idDoc = n.getDocumentKey();
-			Instant wt = null;
+
+			MongoMessage m = new MongoMessage();
+			/*
+			 * fields here are defaulted to values other than null because of this issue
+			 * https://stackoverflow.com/questions/75142178/nullable-date-in-avro-schema-for-google-pub-sub
+			 * https://issuetracker.google.com/issues/242757468
+			 */
+			m.id = "";
+			m.mongoDt = Instant.ofEpochSecond(0).toString();
+			m.eventDt = Instant.now().toString();
+			m.type = n.getNamespace().getCollectionName();
+			m.operation = n.getOperationTypeString();
+			m.object = "{}";
+
 			if ( n.getWallTime() != null )
 				wt = new Date(n.getWallTime().getValue()).toInstant();
 
 			if (n.getOperationType() == OperationType.DELETE) {
 			} else if (n.getOperationType() == OperationType.DROP) {
-				System.out.println("Handling drop of " + n.getNamespace().getCollectionName());
+				// System.out.println("Handling drop of " + n.getNamespace().getCollectionName());
 			} else if (n.getOperationType() == OperationType.DROP_DATABASE) {
 				System.err.println("Unhandled operation for ns " + n.getNamespace().toString());
+				//m.operation = n.getOperationType().toString();
+				continue;
 			} else {
-				System.out.println("id -> "+n.getNamespace().getCollectionName()+
-						"/"+idDoc.getObjectId("_id").getValue().toString() + " -> "+wt.toString());
+				m.id = idDoc.getObjectId("_id").getValue().toString();
+				if ( wt != null )
+					m.mongoDt = wt.toString();
+				m.object = n.getFullDocument().toJson(settings);
+
+				System.out.println("id -> "+m.type+"/"+m.id + " -> "+m.eventDt);
+			}
+
+			//System.out.println("Object: "+objectMapper.writeValueAsString(m));
+			String message = objectMapper.writeValueAsString(m);
+			try {
+				pub.publishMessage(message);
+			} catch (Exception ex) {
+				System.err.println(ex.toString());
+				System.err.println("Message: "+ message);
 			}
 
 			int cur = counter.addAndGet(1);
